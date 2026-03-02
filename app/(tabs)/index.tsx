@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-// 1. Define the blueprint (type) for our tasks
 interface Task {
   id: string;
   text: string;
@@ -11,8 +10,9 @@ interface Task {
 
 export default function App() {
   const [taskText, setTaskText] = useState('');
+  // New state to track the currently selected priority (defaulting to 1)
+  const [selectedPriority, setSelectedPriority] = useState<number>(1);
   
-  // 2. Tell our state that it holds an array of 'Task' objects
   const [tasks, setTasks] = useState<Task[]>([
     { id: '1', text: 'Set up GitHub Desktop repo', priority: 1, completed: false },
     { id: '2', text: 'Plan database schema', priority: 2, completed: false },
@@ -25,15 +25,16 @@ export default function App() {
     const newTask: Task = {
       id: Date.now().toString(),
       text: taskText,
-      priority: 1, 
+      // Use the state variable here instead of a hardcoded 1
+      priority: selectedPriority, 
       completed: false,
     };
     
     setTasks([...tasks, newTask]);
     setTaskText('');
+    setSelectedPriority(1); // Reset back to priority 1 after adding
   };
 
-  // 3. Define 'id' as a string
   const toggleComplete = (id: string) => {
     setTasks(tasks.map(task => 
       task.id === id ? { ...task, completed: !task.completed } : task
@@ -47,7 +48,6 @@ export default function App() {
     return a.completed ? 1 : -1; 
   });
 
-  // 4. Tell the renderer that 'item' is a Task object
   const renderTask = ({ item }: { item: Task }) => (
     <TouchableOpacity 
       style={[styles.taskItem, item.completed && styles.taskItemCompleted]} 
@@ -77,18 +77,42 @@ export default function App() {
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.inputContainer}
+        style={styles.inputWrapper}
       >
-        <TextInput
-          style={styles.input}
-          placeholder="Add a new task..."
-          value={taskText}
-          onChangeText={setTaskText}
-          onSubmitEditing={addTask}
-        />
-        <TouchableOpacity style={styles.addButton} onPress={addTask}>
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
+        {/* New Priority Selection UI */}
+        <View style={styles.prioritySelector}>
+          <Text style={styles.priorityLabel}>Set Priority:</Text>
+          {[1, 2, 3].map((p) => (
+            <TouchableOpacity
+              key={p}
+              style={[
+                styles.priorityButton,
+                selectedPriority === p && styles.priorityButtonSelected
+              ]}
+              onPress={() => setSelectedPriority(p)}
+            >
+              <Text style={[
+                styles.priorityButtonText,
+                selectedPriority === p && styles.priorityButtonTextSelected
+              ]}>
+                {p}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Add a new task..."
+            value={taskText}
+            onChangeText={setTaskText}
+            onSubmitEditing={addTask}
+          />
+          <TouchableOpacity style={styles.addButton} onPress={addTask}>
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -146,13 +170,47 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '600',
   },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 20,
+  inputWrapper: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderColor: '#e0e0e0',
-    marginBottom: 80, // Added slight padding to lift it above the default tab bar
+    paddingBottom: 80, // Pad bottom for tab bar
+  },
+  prioritySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 5,
+  },
+  priorityLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 15,
+  },
+  priorityButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  priorityButtonSelected: {
+    backgroundColor: '#007AFF',
+  },
+  priorityButtonText: {
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  priorityButtonTextSelected: {
+    color: '#fff',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    padding: 20,
+    paddingTop: 10,
   },
   input: {
     flex: 1,
