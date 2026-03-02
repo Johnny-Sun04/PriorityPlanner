@@ -1,7 +1,7 @@
+import * as Haptics from 'expo-haptics'; // 1. Import Haptics
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SwipeListView } from 'react-native-swipe-list-view';
-// Import the global state hook and the Task blueprint
 import { Task, useTasks } from '../../context/TaskContext';
 
 export default function App() {
@@ -9,11 +9,13 @@ export default function App() {
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   
-  // Replace local state with our Global Context!
   const { tasks, setTasks } = useTasks();
 
   const handleSaveTask = () => {
     if (!taskText.trim()) return;
+    
+    // Buzz when the user saves a task (on release of the button)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     if (editingTaskId) {
       setTasks(tasks.map(task => 
@@ -28,7 +30,7 @@ export default function App() {
         text: taskText,
         priority: selectedPriority, 
         completed: false,
-        taskType: 'single', // Defaulting to 'single' for the daily view
+        taskType: 'single', 
       };
       setTasks([...tasks, newTask]);
     }
@@ -38,18 +40,23 @@ export default function App() {
   };
 
   const handleEditPress = (task: Task) => {
+    // Buzz exactly when the 3-second hold finishes so the user knows to let go
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setEditingTaskId(task.id);
     setTaskText(task.text);
     setSelectedPriority(task.priority);
   };
 
   const toggleComplete = (id: string) => {
+    // Buzz lightly when a task is checked off (on release)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTasks(tasks.map(task => 
       task.id === id ? { ...task, completed: !task.completed } : task
     ));
   };
 
   const deleteTask = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTasks(tasks.filter(task => task.id !== id));
     if (editingTaskId === id) {
       setEditingTaskId(null);
@@ -64,13 +71,14 @@ export default function App() {
     return a.completed ? 1 : -1; 
   });
 
+  // 2. Upgraded to Pressable for dynamic shading
   const renderTask = ({ item }: { item: Task }) => (
-    <TouchableOpacity 
-      activeOpacity={1} 
-      style={[
+    <Pressable 
+      style={({ pressed }) => [
         styles.taskItem, 
         item.completed && styles.taskItemCompleted,
-        editingTaskId === item.id && styles.taskItemEditing 
+        editingTaskId === item.id && styles.taskItemEditing,
+        pressed && styles.taskItemPressed // Applies the shading strictly while holding
       ]} 
       onPress={() => toggleComplete(item.id)}
       onLongPress={() => handleEditPress(item)}
@@ -84,7 +92,7 @@ export default function App() {
           Priority {item.priority}
         </Text>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 
   const renderHiddenItem = ({ item }: { item: Task }) => (
@@ -128,7 +136,10 @@ export default function App() {
                 styles.priorityButton,
                 selectedPriority === p && styles.priorityButtonSelected
               ]}
-              onPress={() => setSelectedPriority(p)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSelectedPriority(p);
+              }}
             >
               <Text style={[
                 styles.priorityButtonText,
@@ -169,6 +180,7 @@ const styles = StyleSheet.create({
   taskItem: { backgroundColor: '#fff', padding: 20, borderRadius: 10, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   taskItemCompleted: { backgroundColor: '#e0e0e0', shadowOpacity: 0, elevation: 0 },
   taskItemEditing: { borderColor: '#007AFF', borderWidth: 2 },
+  taskItemPressed: { backgroundColor: '#E8E8E8' }, // 3. The new shading color when held
   taskTextContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskText: { fontSize: 16, color: '#333', flex: 1 },
   textCompleted: { color: '#888', textDecorationLine: 'line-through' },
