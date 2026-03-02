@@ -1,25 +1,16 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-// 1. Import the new library
 import { SwipeListView } from 'react-native-swipe-list-view';
-
-interface Task {
-  id: string;
-  text: string;
-  priority: number;
-  completed: boolean;
-}
+// Import the global state hook and the Task blueprint
+import { Task, useTasks } from '../../context/TaskContext';
 
 export default function App() {
   const [taskText, setTaskText] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', text: 'Set up GitHub Desktop repo', priority: 1, completed: false },
-    { id: '2', text: 'Plan database schema', priority: 2, completed: false },
-    { id: '3', text: 'Review UI mockups', priority: 3, completed: true },
-  ]);
+  // Replace local state with our Global Context!
+  const { tasks, setTasks } = useTasks();
 
   const handleSaveTask = () => {
     if (!taskText.trim()) return;
@@ -37,6 +28,7 @@ export default function App() {
         text: taskText,
         priority: selectedPriority, 
         completed: false,
+        taskType: 'single', // Defaulting to 'single' for the daily view
       };
       setTasks([...tasks, newTask]);
     }
@@ -57,10 +49,8 @@ export default function App() {
     ));
   };
 
-  // 2. Add the delete function
   const deleteTask = (id: string) => {
     setTasks(tasks.filter(task => task.id !== id));
-    // If we delete the task we are currently editing, clear the input box
     if (editingTaskId === id) {
       setEditingTaskId(null);
       setTaskText('');
@@ -74,10 +64,9 @@ export default function App() {
     return a.completed ? 1 : -1; 
   });
 
-  // This is the "Front" of the item (the actual task)
   const renderTask = ({ item }: { item: Task }) => (
     <TouchableOpacity 
-      activeOpacity={1} // Prevents the white background from flashing when swiped
+      activeOpacity={1} 
       style={[
         styles.taskItem, 
         item.completed && styles.taskItemCompleted,
@@ -98,7 +87,6 @@ export default function App() {
     </TouchableOpacity>
   );
 
-  // 3. This is the "Back" of the item (what shows underneath when you swipe)
   const renderHiddenItem = ({ item }: { item: Task }) => (
     <View style={styles.rowBack}>
       <TouchableOpacity
@@ -114,14 +102,13 @@ export default function App() {
     <View style={styles.container}>
       <Text style={styles.headerTitle}>Today's Focus</Text>
       
-      {/* 4. Swap FlatList for SwipeListView */}
       <SwipeListView
         data={sortedTasks}
         keyExtractor={(item) => item.id}
         renderItem={renderTask}
         renderHiddenItem={renderHiddenItem}
-        rightOpenValue={-75} // How far the item slides to the left to reveal the button
-        disableRightSwipe={true} // Prevents swiping to the right
+        rightOpenValue={-75} 
+        disableRightSwipe={true} 
         style={styles.list}
       />
 
@@ -176,151 +163,29 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingTop: 60,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    color: '#333',
-  },
-  list: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  taskItem: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  taskItemCompleted: {
-    backgroundColor: '#e0e0e0',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  taskItemEditing: {
-    borderColor: '#007AFF',
-    borderWidth: 2,
-  },
-  taskTextContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  taskText: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  textCompleted: {
-    color: '#888',
-    textDecorationLine: 'line-through',
-  },
-  priorityText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '600',
-  },
-  // New styles for the swipe-to-delete background
-  rowBack: {
-    alignItems: 'center',
-    backgroundColor: '#FF3B30', // Standard iOS destructive red
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  backRightBtn: {
-    alignItems: 'center',
-    bottom: 0,
-    justifyContent: 'center',
-    position: 'absolute',
-    top: 0,
-    width: 75,
-    right: 0,
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
-  },
-  backTextWhite: {
-    color: '#FFF',
-    fontWeight: 'bold',
-  },
-  inputWrapper: {
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderColor: '#e0e0e0',
-    paddingBottom: 80, 
-  },
-  prioritySelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 5,
-  },
-  priorityLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginRight: 15,
-  },
-  priorityButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  priorityButtonSelected: {
-    backgroundColor: '#007AFF',
-  },
-  priorityButtonText: {
-    color: '#666',
-    fontWeight: 'bold',
-  },
-  priorityButtonTextSelected: {
-    color: '#fff',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 20,
-    paddingTop: 10,
-  },
-  input: {
-    flex: 1,
-    height: 50,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    marginRight: 10,
-  },
-  addButton: {
-    width: 50,
-    height: 50,
-    backgroundColor: '#007AFF',
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveButton: {
-    backgroundColor: '#34C759', 
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, backgroundColor: '#f5f5f5', paddingTop: 60 },
+  headerTitle: { fontSize: 28, fontWeight: 'bold', marginHorizontal: 20, marginBottom: 20, color: '#333' },
+  list: { flex: 1, paddingHorizontal: 20 },
+  taskItem: { backgroundColor: '#fff', padding: 20, borderRadius: 10, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  taskItemCompleted: { backgroundColor: '#e0e0e0', shadowOpacity: 0, elevation: 0 },
+  taskItemEditing: { borderColor: '#007AFF', borderWidth: 2 },
+  taskTextContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  taskText: { fontSize: 16, color: '#333', flex: 1 },
+  textCompleted: { color: '#888', textDecorationLine: 'line-through' },
+  priorityText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  rowBack: { alignItems: 'center', backgroundColor: '#FF3B30', flex: 1, flexDirection: 'row', justifyContent: 'flex-end', borderRadius: 10, marginBottom: 10 },
+  backRightBtn: { alignItems: 'center', bottom: 0, justifyContent: 'center', position: 'absolute', top: 0, width: 75, right: 0, borderTopRightRadius: 10, borderBottomRightRadius: 10 },
+  backTextWhite: { color: '#FFF', fontWeight: 'bold' },
+  inputWrapper: { backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e0e0e0', paddingBottom: 80 },
+  prioritySelector: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 5 },
+  priorityLabel: { fontSize: 14, color: '#666', marginRight: 15 },
+  priorityButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  priorityButtonSelected: { backgroundColor: '#007AFF' },
+  priorityButtonText: { color: '#666', fontWeight: 'bold' },
+  priorityButtonTextSelected: { color: '#fff' },
+  inputContainer: { flexDirection: 'row', padding: 20, paddingTop: 10 },
+  input: { flex: 1, height: 50, backgroundColor: '#f0f0f0', borderRadius: 25, paddingHorizontal: 20, fontSize: 16, marginRight: 10 },
+  addButton: { width: 50, height: 50, backgroundColor: '#007AFF', borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  saveButton: { backgroundColor: '#34C759' },
+  addButtonText: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
 });
