@@ -10,8 +10,10 @@ interface Task {
 
 export default function App() {
   const [taskText, setTaskText] = useState('');
-  // New state to track the currently selected priority (defaulting to 1)
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
+  
+  // New state to track if we are currently editing a task (holds the ID, or null if adding new)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   
   const [tasks, setTasks] = useState<Task[]>([
     { id: '1', text: 'Set up GitHub Desktop repo', priority: 1, completed: false },
@@ -19,20 +21,39 @@ export default function App() {
     { id: '3', text: 'Review UI mockups', priority: 3, completed: true },
   ]);
 
-  const addTask = () => {
+  // This handles both adding a new task AND saving an edited task
+  const handleSaveTask = () => {
     if (!taskText.trim()) return;
     
-    const newTask: Task = {
-      id: Date.now().toString(),
-      text: taskText,
-      // Use the state variable here instead of a hardcoded 1
-      priority: selectedPriority, 
-      completed: false,
-    };
+    if (editingTaskId) {
+      // We are in edit mode: find the matching task and update its text and priority
+      setTasks(tasks.map(task => 
+        task.id === editingTaskId 
+          ? { ...task, text: taskText, priority: selectedPriority } 
+          : task
+      ));
+      setEditingTaskId(null); // Exit edit mode
+    } else {
+      // We are in add mode: create a brand new task
+      const newTask: Task = {
+        id: Date.now().toString(),
+        text: taskText,
+        priority: selectedPriority, 
+        completed: false,
+      };
+      setTasks([...tasks, newTask]);
+    }
     
-    setTasks([...tasks, newTask]);
+    // Reset the input fields
     setTaskText('');
-    setSelectedPriority(1); // Reset back to priority 1 after adding
+    setSelectedPriority(1); 
+  };
+
+  // Triggers when a task is held down for 3 seconds
+  const handleEditPress = (task: Task) => {
+    setEditingTaskId(task.id);
+    setTaskText(task.text);
+    setSelectedPriority(task.priority);
   };
 
   const toggleComplete = (id: string) => {
@@ -50,8 +71,14 @@ export default function App() {
 
   const renderTask = ({ item }: { item: Task }) => (
     <TouchableOpacity 
-      style={[styles.taskItem, item.completed && styles.taskItemCompleted]} 
+      style={[
+        styles.taskItem, 
+        item.completed && styles.taskItemCompleted,
+        editingTaskId === item.id && styles.taskItemEditing // Highlight the task being edited
+      ]} 
       onPress={() => toggleComplete(item.id)}
+      onLongPress={() => handleEditPress(item)}
+      delayLongPress={750} // Forces the user to hold for exactly 750ms (.75 seconds)
     >
       <View style={styles.taskTextContainer}>
         <Text style={[styles.taskText, item.completed && styles.textCompleted]}>
@@ -77,11 +104,13 @@ export default function App() {
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20} // TODO: Replace with react-native-keyboard-aware-scroll-view for production
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20} 
         style={styles.inputWrapper}
       >
         <View style={styles.prioritySelector}>
-          <Text style={styles.priorityLabel}>Set Priority:</Text>
+          <Text style={styles.priorityLabel}>
+            {editingTaskId ? "Edit Priority:" : "Set Priority:"}
+          </Text>
           {[1, 2, 3].map((p) => (
             <TouchableOpacity
               key={p}
@@ -104,13 +133,19 @@ export default function App() {
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Add a new task..."
+            placeholder={editingTaskId ? "Edit task..." : "Add a new task..."}
             value={taskText}
             onChangeText={setTaskText}
-            onSubmitEditing={addTask}
+            onSubmitEditing={handleSaveTask}
           />
-          <TouchableOpacity style={styles.addButton} onPress={addTask}>
-            <Text style={styles.addButtonText}>+</Text>
+          {/* Changes color and icon based on whether we are adding or editing */}
+          <TouchableOpacity 
+            style={[styles.addButton, editingTaskId && styles.saveButton]} 
+            onPress={handleSaveTask}
+          >
+            <Text style={styles.addButtonText}>
+              {editingTaskId ? "✓" : "+"}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -151,6 +186,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  taskItemEditing: {
+    borderColor: '#007AFF',
+    borderWidth: 2,
+  },
   taskTextContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -174,7 +213,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderColor: '#e0e0e0',
-    paddingBottom: 80, // Pad bottom for tab bar
+    paddingBottom: 80, 
   },
   prioritySelector: {
     flexDirection: 'row',
@@ -228,6 +267,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  saveButton: {
+    backgroundColor: '#34C759', // Green color for saving
   },
   addButtonText: {
     color: '#fff',
