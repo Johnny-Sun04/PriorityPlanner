@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// 1. Import the new library
+import { SwipeListView } from 'react-native-swipe-list-view';
 
 interface Task {
   id: string;
@@ -11,8 +13,6 @@ interface Task {
 export default function App() {
   const [taskText, setTaskText] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
-  
-  // New state to track if we are currently editing a task (holds the ID, or null if adding new)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   
   const [tasks, setTasks] = useState<Task[]>([
@@ -21,20 +21,17 @@ export default function App() {
     { id: '3', text: 'Review UI mockups', priority: 3, completed: true },
   ]);
 
-  // This handles both adding a new task AND saving an edited task
   const handleSaveTask = () => {
     if (!taskText.trim()) return;
     
     if (editingTaskId) {
-      // We are in edit mode: find the matching task and update its text and priority
       setTasks(tasks.map(task => 
         task.id === editingTaskId 
           ? { ...task, text: taskText, priority: selectedPriority } 
           : task
       ));
-      setEditingTaskId(null); // Exit edit mode
+      setEditingTaskId(null); 
     } else {
-      // We are in add mode: create a brand new task
       const newTask: Task = {
         id: Date.now().toString(),
         text: taskText,
@@ -44,12 +41,10 @@ export default function App() {
       setTasks([...tasks, newTask]);
     }
     
-    // Reset the input fields
     setTaskText('');
     setSelectedPriority(1); 
   };
 
-  // Triggers when a task is held down for 3 seconds
   const handleEditPress = (task: Task) => {
     setEditingTaskId(task.id);
     setTaskText(task.text);
@@ -62,6 +57,16 @@ export default function App() {
     ));
   };
 
+  // 2. Add the delete function
+  const deleteTask = (id: string) => {
+    setTasks(tasks.filter(task => task.id !== id));
+    // If we delete the task we are currently editing, clear the input box
+    if (editingTaskId === id) {
+      setEditingTaskId(null);
+      setTaskText('');
+    }
+  };
+
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.completed === b.completed) {
       return a.priority - b.priority;
@@ -69,16 +74,18 @@ export default function App() {
     return a.completed ? 1 : -1; 
   });
 
+  // This is the "Front" of the item (the actual task)
   const renderTask = ({ item }: { item: Task }) => (
     <TouchableOpacity 
+      activeOpacity={1} // Prevents the white background from flashing when swiped
       style={[
         styles.taskItem, 
         item.completed && styles.taskItemCompleted,
-        editingTaskId === item.id && styles.taskItemEditing // Highlight the task being edited
+        editingTaskId === item.id && styles.taskItemEditing 
       ]} 
       onPress={() => toggleComplete(item.id)}
       onLongPress={() => handleEditPress(item)}
-      delayLongPress={750} // Forces the user to hold for exactly 750ms (.75 seconds)
+      delayLongPress={3000} 
     >
       <View style={styles.taskTextContainer}>
         <Text style={[styles.taskText, item.completed && styles.textCompleted]}>
@@ -91,14 +98,30 @@ export default function App() {
     </TouchableOpacity>
   );
 
+  // 3. This is the "Back" of the item (what shows underneath when you swipe)
+  const renderHiddenItem = ({ item }: { item: Task }) => (
+    <View style={styles.rowBack}>
+      <TouchableOpacity
+        style={styles.backRightBtn}
+        onPress={() => deleteTask(item.id)}
+      >
+        <Text style={styles.backTextWhite}>Delete</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <Text style={styles.headerTitle}>Today's Focus</Text>
       
-      <FlatList
+      {/* 4. Swap FlatList for SwipeListView */}
+      <SwipeListView
         data={sortedTasks}
         keyExtractor={(item) => item.id}
         renderItem={renderTask}
+        renderHiddenItem={renderHiddenItem}
+        rightOpenValue={-75} // How far the item slides to the left to reveal the button
+        disableRightSwipe={true} // Prevents swiping to the right
         style={styles.list}
       />
 
@@ -138,7 +161,6 @@ export default function App() {
             onChangeText={setTaskText}
             onSubmitEditing={handleSaveTask}
           />
-          {/* Changes color and icon based on whether we are adding or editing */}
           <TouchableOpacity 
             style={[styles.addButton, editingTaskId && styles.saveButton]} 
             onPress={handleSaveTask}
@@ -209,6 +231,31 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '600',
   },
+  // New styles for the swipe-to-delete background
+  rowBack: {
+    alignItems: 'center',
+    backgroundColor: '#FF3B30', // Standard iOS destructive red
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  backRightBtn: {
+    alignItems: 'center',
+    bottom: 0,
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    width: 75,
+    right: 0,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+  },
+  backTextWhite: {
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
   inputWrapper: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
@@ -269,7 +316,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButton: {
-    backgroundColor: '#34C759', // Green color for saving
+    backgroundColor: '#34C759', 
   },
   addButtonText: {
     color: '#fff',
