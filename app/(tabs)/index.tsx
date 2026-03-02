@@ -74,7 +74,7 @@ export default function App() {
       ]} 
       onPress={() => toggleComplete(item.id)}
       onLongPress={() => handleEditPress(item)}
-      delayLongPress={3000} 
+      delayLongPress={750} 
     >
       <View style={styles.taskTextContainer}>
         <Text style={[styles.taskText, item.completed && styles.textCompleted]}>
