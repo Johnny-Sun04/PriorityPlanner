@@ -77,9 +77,9 @@ export default function App() {
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20} // TODO: Replace with react-native-keyboard-aware-scroll-view for production
         style={styles.inputWrapper}
       >
-        {/* New Priority Selection UI */}
         <View style={styles.prioritySelector}>
           <Text style={styles.priorityLabel}>Set Priority:</Text>
           {[1, 2, 3].map((p) => (
