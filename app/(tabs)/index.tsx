@@ -21,10 +21,12 @@ export default function App() {
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [tagInput, setTagInput] = useState('');
   
+  // --- NEW FILTER STATE ---
+  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [filterPriority, setFilterPriority] = useState<number | null>(null);
+  
   const { tasks, setTasks } = useTasks();
 
-  // --- NEW: DYNAMICALLY COMPUTE EXISTING TAGS ---
-  // Grabs all tags, filters out undefined/empty ones, and uses a Set to remove duplicates
   const existingTags = Array.from(new Set(tasks.map(t => t.tag).filter(Boolean))) as string[];
 
   const isTaskCompletedToday = (task: Task) => {
@@ -126,7 +128,17 @@ export default function App() {
   const completedTasks = todaysTasks.filter(task => isTaskCompletedToday(task)).length;
   const progressPercentage = totalTasks === 0 ? 0 : (completedTasks / totalTasks) * 100;
 
-  const sortedTasks = [...todaysTasks].sort((a, b) => {
+  // --- NEW FILTERING LOGIC ---
+  let filteredTodaysTasks = todaysTasks;
+  if (filterTag) {
+    filteredTodaysTasks = filteredTodaysTasks.filter(task => task.tag === filterTag);
+  }
+  if (filterPriority) {
+    filteredTodaysTasks = filteredTodaysTasks.filter(task => task.priority === filterPriority);
+  }
+
+  // Sort the filtered list
+  const sortedTasks = [...filteredTodaysTasks].sort((a, b) => {
     const aCompleted = isTaskCompletedToday(a);
     const bCompleted = isTaskCompletedToday(b);
 
@@ -198,8 +210,54 @@ export default function App() {
         </View>
       </View>
 
+      {/* --- NEW FILTER BAR UI --- */}
+      <View style={styles.filterBarContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          {/* Priority Filters */}
+          {[1, 2, 3].map(p => {
+            const isActive = filterPriority === p;
+            return (
+              <TouchableOpacity
+                key={`filter-p-${p}`}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  // Toggle off if already active
+                  setFilterPriority(isActive ? null : p);
+                }}
+              >
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  P{p}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          
+          <View style={styles.filterDivider} />
+
+          {/* Tag Filters */}
+          {existingTags.map(tag => {
+            const isActive = filterTag === tag;
+            return (
+              <TouchableOpacity
+                key={`filter-t-${tag}`}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setFilterTag(isActive ? null : tag);
+                }}
+              >
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  {tag}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       <SwipeListView
-        data={sortedTasks}
+        data={sortedTasks} // Passed the filtered list here!
         keyExtractor={(item) => item.id}
         renderItem={renderTask}
         renderHiddenItem={renderHiddenItem}
@@ -224,7 +282,6 @@ export default function App() {
           />
         </View>
 
-        {/* --- NEW: RENDER EXISTING TAGS AS CLICKABLE CHIPS --- */}
         {existingTags.length > 0 && (
           <View style={styles.existingTagsContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
@@ -234,7 +291,7 @@ export default function App() {
                   style={styles.existingTagChip}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setTagInput(tag); // Auto-fills the input box!
+                    setTagInput(tag); 
                   }}
                 >
                   <Text style={styles.existingTagChipText}>{tag}</Text>
@@ -326,12 +383,22 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5', paddingTop: 60 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', marginHorizontal: 20, marginBottom: 15, color: '#333' },
-  progressContainer: { marginHorizontal: 20, marginBottom: 20 },
+  progressContainer: { marginHorizontal: 20, marginBottom: 15 },
   progressTextContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   progressLabel: { fontSize: 16, fontWeight: '600', color: '#666' },
   progressPercent: { fontSize: 16, fontWeight: 'bold', color: '#34C759' }, 
   progressBarBackground: { height: 12, backgroundColor: '#e0e0e0', borderRadius: 6, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#34C759', borderRadius: 6 }, 
+  
+  // --- NEW FILTER BAR STYLES ---
+  filterBarContainer: { marginBottom: 10 },
+  filterScroll: { paddingHorizontal: 20, gap: 8, alignItems: 'center' },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#e0e0e0' },
+  filterChipActive: { backgroundColor: '#333' },
+  filterChipText: { fontSize: 13, fontWeight: 'bold', color: '#666' },
+  filterChipTextActive: { color: '#fff' },
+  filterDivider: { width: 1, height: 20, backgroundColor: '#ccc', marginHorizontal: 4 },
+  
   list: { flex: 1, paddingHorizontal: 20 },
   taskItem: { backgroundColor: '#fff', padding: 20, borderRadius: 10, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   taskItemCompleted: { backgroundColor: '#e0e0e0', shadowOpacity: 0, elevation: 0 },
@@ -354,7 +421,6 @@ const styles = StyleSheet.create({
   tagInputContainer: { paddingHorizontal: 20, paddingTop: 15 },
   tagInput: { height: 40, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, fontSize: 14 },
   
-  // --- NEW STYLES FOR THE EXISTING TAGS ---
   existingTagsContainer: { paddingTop: 10 },
   tagsScroll: { paddingHorizontal: 20, gap: 8 },
   existingTagChip: { backgroundColor: '#e8f0fe', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#007AFF' },
