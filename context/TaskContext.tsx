@@ -4,12 +4,12 @@ export interface Task {
   id: string;
   text: string;
   priority: number;
-  completed: boolean;
+  completed: boolean; // Still used for 'single' tasks
   taskType: 'single' | 'spanning' | 'daily' | 'weekly';
   startDate?: string;
   endDate?: string;
-  daysOfWeek?: number[]; // Array of numbers: 0 = Sunday, 1 = Monday, etc.
-  lastCompletedDate?: string; 
+  daysOfWeek?: number[]; 
+  completedDates?: string[]; // <--- The new array to track weekly completions
 }
 
 interface TaskContextType {

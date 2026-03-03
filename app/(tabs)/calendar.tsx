@@ -20,17 +20,19 @@ export default function CalendarScreen() {
 
   const { tasks, setTasks } = useTasks();
 
-  // 1. Safely figure out the day of the week (0-6) for whatever date you clicked on the calendar
   const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
   const selectedDayOfWeek = new Date(selYear, selMonth - 1, selDay).getDay();
 
-  // 2. The Upgraded Calendar Filter
+  // --- NEW HELPER FUNCTION FOR CALENDAR ---
+  const isTaskCompletedOnDate = (task: Task, dateString: string) => {
+    if (task.taskType === 'weekly') {
+      return task.completedDates?.includes(dateString) || false;
+    }
+    return task.completed;
+  };
+
   const tasksForSelectedDate = tasks.filter(task => {
-    // Is it a single task scheduled for this exact calendar day?
     const isSingleMatch = task.taskType === 'single' && task.startDate === selectedDate;
-    
-    // Is it a weekly task that runs on this day of the week?
-    // (We also check `selectedDate >= task.startDate` so a task you create today doesn't show up on a calendar day from 3 years ago!)
     const isWeeklyMatch = task.taskType === 'weekly' && 
                           task.daysOfWeek?.includes(selectedDayOfWeek) && 
                           task.startDate && 
@@ -40,10 +42,14 @@ export default function CalendarScreen() {
   });
 
   const sortedTasks = [...tasksForSelectedDate].sort((a, b) => {
-    if (a.completed === b.completed) {
+    // Sort dynamically based on the selected calendar date!
+    const aCompleted = isTaskCompletedOnDate(a, selectedDate);
+    const bCompleted = isTaskCompletedOnDate(b, selectedDate);
+
+    if (aCompleted === bCompleted) {
       return a.priority - b.priority;
     }
-    return a.completed ? 1 : -1; 
+    return aCompleted ? 1 : -1; 
   });
 
   const handleSaveTask = () => {
@@ -64,8 +70,9 @@ export default function CalendarScreen() {
         text: taskText,
         priority: selectedPriority,
         completed: false,
-        taskType: 'single', // Tasks added directly on the calendar default to single
+        taskType: 'single', 
         startDate: selectedDate, 
+        completedDates: [],
       };
       setTasks([...tasks, newTask]);
     }
@@ -82,11 +89,27 @@ export default function CalendarScreen() {
     setSelectedPriority(task.priority);
   };
 
+  // --- UPDATED TOGGLE LOGIC FOR CALENDAR ---
   const toggleComplete = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+    setTasks(tasks.map(task => {
+      if (task.id === id) {
+        if (task.taskType === 'weekly') {
+          const dates = task.completedDates || [];
+          const isDoneOnSelectedDate = dates.includes(selectedDate);
+          
+          // Toggle it specifically for the date you are currently viewing
+          const newDates = isDoneOnSelectedDate 
+            ? dates.filter(d => d !== selectedDate) 
+            : [...dates, selectedDate];
+            
+          return { ...task, completedDates: newDates };
+        } else {
+          return { ...task, completed: !task.completed };
+        }
+      }
+      return task;
+    }));
   };
 
   const deleteTask = (id: string) => {
@@ -98,30 +121,34 @@ export default function CalendarScreen() {
     }
   };
 
-  const renderTask = ({ item }: { item: Task }) => (
-    <Pressable 
-      style={({ pressed }) => [
-        styles.taskItem, 
-        item.completed && styles.taskItemCompleted,
-        editingTaskId === item.id && styles.taskItemEditing,
-        pressed && styles.taskItemPressed 
-      ]} 
-      onPress={() => toggleComplete(item.id)}
-      onLongPress={() => handleEditPress(item)}
-      delayLongPress={750} 
-    >
-      <View style={styles.taskTextContainer}>
-        <Text style={[styles.taskText, item.completed && styles.textCompleted]}>
-          {item.text}
-          {/* Added the repeat icon here too! */}
-          {item.taskType === 'weekly' && " 🔄"}
-        </Text>
-        <Text style={styles.priorityText}>
-          Priority {item.priority}
-        </Text>
-      </View>
-    </Pressable>
-  );
+  const renderTask = ({ item }: { item: Task }) => {
+    // Check if this task is completed specifically on the selected calendar date
+    const isCompleted = isTaskCompletedOnDate(item, selectedDate);
+
+    return (
+      <Pressable 
+        style={({ pressed }) => [
+          styles.taskItem, 
+          isCompleted && styles.taskItemCompleted,
+          editingTaskId === item.id && styles.taskItemEditing,
+          pressed && styles.taskItemPressed 
+        ]} 
+        onPress={() => toggleComplete(item.id)}
+        onLongPress={() => handleEditPress(item)}
+        delayLongPress={750} 
+      >
+        <View style={styles.taskTextContainer}>
+          <Text style={[styles.taskText, isCompleted && styles.textCompleted]}>
+            {item.text}
+            {item.taskType === 'weekly' && " 🔄"}
+          </Text>
+          <Text style={styles.priorityText}>
+            Priority {item.priority}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
 
   const renderHiddenItem = ({ item }: { item: Task }) => (
     <View style={styles.rowBack}>
@@ -197,7 +224,7 @@ export default function CalendarScreen() {
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20} 
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 20} 
         style={styles.inputWrapper}
       >
         <View style={styles.prioritySelector}>
