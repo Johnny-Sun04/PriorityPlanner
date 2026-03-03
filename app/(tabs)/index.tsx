@@ -1,10 +1,17 @@
-import * as Haptics from 'expo-haptics'; // 1. Import Haptics
+import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SwipeListView } from 'react-native-swipe-list-view';
 import { Task, useTasks } from '../../context/TaskContext';
 
 export default function App() {
+  // Get today's date in 'YYYY-MM-DD' format
+  const dateObj = new Date();
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const today = `${year}-${month}-${day}`;
+
   const [taskText, setTaskText] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -14,7 +21,6 @@ export default function App() {
   const handleSaveTask = () => {
     if (!taskText.trim()) return;
     
-    // Buzz when the user saves a task (on release of the button)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     if (editingTaskId) {
@@ -30,7 +36,8 @@ export default function App() {
         text: taskText,
         priority: selectedPriority, 
         completed: false,
-        taskType: 'single', 
+        taskType: 'single',
+        startDate: today, // <--- Stamps the task with today's date!
       };
       setTasks([...tasks, newTask]);
     }
@@ -40,7 +47,6 @@ export default function App() {
   };
 
   const handleEditPress = (task: Task) => {
-    // Buzz exactly when the 3-second hold finishes so the user knows to let go
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setEditingTaskId(task.id);
     setTaskText(task.text);
@@ -48,7 +54,6 @@ export default function App() {
   };
 
   const toggleComplete = (id: string) => {
-    // Buzz lightly when a task is checked off (on release)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTasks(tasks.map(task => 
       task.id === id ? { ...task, completed: !task.completed } : task
@@ -64,21 +69,24 @@ export default function App() {
     }
   };
 
-  const sortedTasks = [...tasks].sort((a, b) => {
+  // 1. Filter the tasks to ONLY show today's tasks (or old tasks without a date)
+  const todaysTasks = tasks.filter(task => !task.startDate || task.startDate === today);
+
+  // 2. Sort the filtered tasks
+  const sortedTasks = [...todaysTasks].sort((a, b) => {
     if (a.completed === b.completed) {
       return a.priority - b.priority;
     }
     return a.completed ? 1 : -1; 
   });
 
-  // 2. Upgraded to Pressable for dynamic shading
   const renderTask = ({ item }: { item: Task }) => (
     <Pressable 
       style={({ pressed }) => [
         styles.taskItem, 
         item.completed && styles.taskItemCompleted,
         editingTaskId === item.id && styles.taskItemEditing,
-        pressed && styles.taskItemPressed // Applies the shading strictly while holding
+        pressed && styles.taskItemPressed 
       ]} 
       onPress={() => toggleComplete(item.id)}
       onLongPress={() => handleEditPress(item)}
@@ -180,7 +188,7 @@ const styles = StyleSheet.create({
   taskItem: { backgroundColor: '#fff', padding: 20, borderRadius: 10, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   taskItemCompleted: { backgroundColor: '#e0e0e0', shadowOpacity: 0, elevation: 0 },
   taskItemEditing: { borderColor: '#007AFF', borderWidth: 2 },
-  taskItemPressed: { backgroundColor: '#E8E8E8' }, // 3. The new shading color when held
+  taskItemPressed: { backgroundColor: '#E8E8E8' }, 
   taskTextContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskText: { fontSize: 16, color: '#333', flex: 1 },
   textCompleted: { color: '#888', textDecorationLine: 'line-through' },

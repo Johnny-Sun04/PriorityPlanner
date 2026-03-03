@@ -5,7 +5,11 @@ import { Task, useTasks } from '../../context/TaskContext';
 
 export default function CalendarScreen() {
   // Get today's date in 'YYYY-MM-DD' format to use as the default selection
-  const today = new Date().toISOString().split('T')[0];
+  const dateObj = new Date();
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const today = `${year}-${month}-${day}`;
   const [selectedDate, setSelectedDate] = useState(today);
   
   const [taskText, setTaskText] = useState('');
@@ -101,7 +105,7 @@ export default function CalendarScreen() {
       {/* Input UI adapted for the Calendar screen */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20} 
+        keyboardVerticalOffset={Platform.OS === "ios" ? 110 : 20} 
         style={styles.inputWrapper}
       >
         <View style={styles.prioritySelector}>
