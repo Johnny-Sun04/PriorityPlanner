@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SwipeListView } from 'react-native-swipe-list-view';
 import { Task, useTasks } from '../../context/TaskContext';
 
@@ -19,11 +19,13 @@ export default function App() {
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  
-  // --- NEW TAG TEXT INPUT STATE ---
   const [tagInput, setTagInput] = useState('');
   
   const { tasks, setTasks } = useTasks();
+
+  // --- NEW: DYNAMICALLY COMPUTE EXISTING TAGS ---
+  // Grabs all tags, filters out undefined/empty ones, and uses a Set to remove duplicates
+  const existingTags = Array.from(new Set(tasks.map(t => t.tag).filter(Boolean))) as string[];
 
   const isTaskCompletedToday = (task: Task) => {
     if (task.taskType === 'weekly') {
@@ -72,7 +74,7 @@ export default function App() {
     setTaskText('');
     setSelectedPriority(1); 
     setSelectedDays([]); 
-    setTagInput(''); // Clear the tag input
+    setTagInput(''); 
   };
 
   const handleEditPress = (task: Task) => {
@@ -81,7 +83,7 @@ export default function App() {
     setTaskText(task.text);
     setSelectedPriority(task.priority);
     setSelectedDays(task.daysOfWeek || []);
-    setTagInput(task.tag || ''); // Load the existing tag into the input box
+    setTagInput(task.tag || ''); 
   };
 
   const toggleComplete = (id: string) => {
@@ -156,7 +158,6 @@ export default function App() {
               {item.taskType === 'weekly' && " 🔄"} 
             </Text>
             
-            {/* Dynamic Custom Tag Badge */}
             {item.tag && (
               <View style={styles.customTagBadge}>
                 <Text style={styles.customTagBadgeText}>{item.tag}</Text>
@@ -213,16 +214,35 @@ export default function App() {
         style={styles.inputWrapper}
       >
         
-        {/* --- CUSTOM TAG INPUT --- */}
         <View style={styles.tagInputContainer}>
           <TextInput
             style={styles.tagInput}
             placeholder="Tag (e.g. Filmmaking, Gym)..."
             value={tagInput}
             onChangeText={setTagInput}
-            maxLength={15} // Keeps the badges looking clean
+            maxLength={15} 
           />
         </View>
+
+        {/* --- NEW: RENDER EXISTING TAGS AS CLICKABLE CHIPS --- */}
+        {existingTags.length > 0 && (
+          <View style={styles.existingTagsContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
+              {existingTags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={styles.existingTagChip}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setTagInput(tag); // Auto-fills the input box!
+                  }}
+                >
+                  <Text style={styles.existingTagChipText}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <View style={styles.daysSelector}>
           <Text style={styles.priorityLabel}>Repeat:</Text>
@@ -322,7 +342,6 @@ const styles = StyleSheet.create({
   taskText: { fontSize: 16, color: '#333', flex: 1, paddingRight: 10 },
   textCompleted: { color: '#888', textDecorationLine: 'line-through' },
   
-  // Custom Badge Styles
   customTagBadge: { backgroundColor: '#e8f0fe', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#007AFF' },
   customTagBadgeText: { color: '#007AFF', fontSize: 10, fontWeight: 'bold' },
   
@@ -332,9 +351,14 @@ const styles = StyleSheet.create({
   backTextWhite: { color: '#FFF', fontWeight: 'bold' },
   inputWrapper: { backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e0e0e0', paddingBottom: 80 },
   
-  // Tag Input Styles
   tagInputContainer: { paddingHorizontal: 20, paddingTop: 15 },
   tagInput: { height: 40, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, fontSize: 14 },
+  
+  // --- NEW STYLES FOR THE EXISTING TAGS ---
+  existingTagsContainer: { paddingTop: 10 },
+  tagsScroll: { paddingHorizontal: 20, gap: 8 },
+  existingTagChip: { backgroundColor: '#e8f0fe', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#007AFF' },
+  existingTagChipText: { color: '#007AFF', fontSize: 12, fontWeight: 'bold' },
   
   daysSelector: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10 },
   dayButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
