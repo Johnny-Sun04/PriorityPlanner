@@ -11,6 +11,7 @@ export interface Task {
   endDate?: string;
   daysOfWeek?: number[]; 
   completedDates?: string[]; 
+  tag?: string; // <--- Changed from a strict list to any string
 }
 
 interface TaskContextType {

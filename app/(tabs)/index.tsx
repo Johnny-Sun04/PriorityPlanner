@@ -20,10 +20,11 @@ export default function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   
+  // --- NEW TAG TEXT INPUT STATE ---
+  const [tagInput, setTagInput] = useState('');
+  
   const { tasks, setTasks } = useTasks();
 
-  // --- NEW HELPER FUNCTION ---
-  // Dynamically determines if a task is done TODAY
   const isTaskCompletedToday = (task: Task) => {
     if (task.taskType === 'weekly') {
       return task.completedDates?.includes(today) || false;
@@ -37,6 +38,7 @@ export default function App() {
     
     const newTaskType = selectedDays.length > 0 ? 'weekly' : 'single';
     const newDaysOfWeek = selectedDays.length > 0 ? selectedDays : undefined;
+    const finalTag = tagInput.trim() ? tagInput.trim() : undefined;
 
     if (editingTaskId) {
       setTasks(tasks.map(task => 
@@ -46,7 +48,8 @@ export default function App() {
               text: taskText, 
               priority: selectedPriority,
               taskType: newTaskType,
-              daysOfWeek: newDaysOfWeek
+              daysOfWeek: newDaysOfWeek,
+              tag: finalTag 
             } 
           : task
       ));
@@ -60,7 +63,8 @@ export default function App() {
         taskType: newTaskType,
         startDate: today,
         daysOfWeek: newDaysOfWeek,
-        completedDates: [], // Initialize the empty array for new tasks
+        completedDates: [],
+        tag: finalTag, 
       };
       setTasks([...tasks, newTask]);
     }
@@ -68,6 +72,7 @@ export default function App() {
     setTaskText('');
     setSelectedPriority(1); 
     setSelectedDays([]); 
+    setTagInput(''); // Clear the tag input
   };
 
   const handleEditPress = (task: Task) => {
@@ -76,9 +81,9 @@ export default function App() {
     setTaskText(task.text);
     setSelectedPriority(task.priority);
     setSelectedDays(task.daysOfWeek || []);
+    setTagInput(task.tag || ''); // Load the existing tag into the input box
   };
 
-  // --- UPDATED TOGGLE LOGIC ---
   const toggleComplete = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTasks(tasks.map(task => {
@@ -86,7 +91,6 @@ export default function App() {
         if (task.taskType === 'weekly') {
           const dates = task.completedDates || [];
           const isDoneToday = dates.includes(today);
-          // If done today, remove today from the array. If not done, add today to the array.
           const newDates = isDoneToday 
             ? dates.filter(d => d !== today) 
             : [...dates, today];
@@ -106,6 +110,7 @@ export default function App() {
       setEditingTaskId(null);
       setTaskText('');
       setSelectedDays([]);
+      setTagInput('');
     }
   };
 
@@ -115,8 +120,11 @@ export default function App() {
     return isTodaySingle || isTodayWeekly;
   });
 
+  const totalTasks = todaysTasks.length;
+  const completedTasks = todaysTasks.filter(task => isTaskCompletedToday(task)).length;
+  const progressPercentage = totalTasks === 0 ? 0 : (completedTasks / totalTasks) * 100;
+
   const sortedTasks = [...todaysTasks].sort((a, b) => {
-    // We now sort using our dynamic helper function!
     const aCompleted = isTaskCompletedToday(a);
     const bCompleted = isTaskCompletedToday(b);
 
@@ -127,7 +135,6 @@ export default function App() {
   });
 
   const renderTask = ({ item }: { item: Task }) => {
-    // Check if THIS specific task is done today
     const isCompleted = isTaskCompletedToday(item);
 
     return (
@@ -143,10 +150,20 @@ export default function App() {
         delayLongPress={750} 
       >
         <View style={styles.taskTextContainer}>
-          <Text style={[styles.taskText, isCompleted && styles.textCompleted]}>
-            {item.text}
-            {item.taskType === 'weekly' && " 🔄"} 
-          </Text>
+          <View style={styles.taskTitleRow}>
+            <Text style={[styles.taskText, isCompleted && styles.textCompleted]}>
+              {item.text}
+              {item.taskType === 'weekly' && " 🔄"} 
+            </Text>
+            
+            {/* Dynamic Custom Tag Badge */}
+            {item.tag && (
+              <View style={styles.customTagBadge}>
+                <Text style={styles.customTagBadgeText}>{item.tag}</Text>
+              </View>
+            )}
+          </View>
+
           <Text style={styles.priorityText}>
             Priority {item.priority}
           </Text>
@@ -170,6 +187,16 @@ export default function App() {
     <View style={styles.container}>
       <Text style={styles.headerTitle}>Today's Focus</Text>
       
+      <View style={styles.progressContainer}>
+        <View style={styles.progressTextContainer}>
+          <Text style={styles.progressLabel}>Daily Progress</Text>
+          <Text style={styles.progressPercent}>{Math.round(progressPercentage)}%</Text>
+        </View>
+        <View style={styles.progressBarBackground}>
+          <View style={[styles.progressBarFill, { width: `${progressPercentage}%` }]} />
+        </View>
+      </View>
+
       <SwipeListView
         data={sortedTasks}
         keyExtractor={(item) => item.id}
@@ -185,6 +212,18 @@ export default function App() {
         keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 20} 
         style={styles.inputWrapper}
       >
+        
+        {/* --- CUSTOM TAG INPUT --- */}
+        <View style={styles.tagInputContainer}>
+          <TextInput
+            style={styles.tagInput}
+            placeholder="Tag (e.g. Filmmaking, Gym)..."
+            value={tagInput}
+            onChangeText={setTagInput}
+            maxLength={15} // Keeps the badges looking clean
+          />
+        </View>
+
         <View style={styles.daysSelector}>
           <Text style={styles.priorityLabel}>Repeat:</Text>
           {DAYS.map((day, index) => {
@@ -266,21 +305,38 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5', paddingTop: 60 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', marginHorizontal: 20, marginBottom: 20, color: '#333' },
+  headerTitle: { fontSize: 28, fontWeight: 'bold', marginHorizontal: 20, marginBottom: 15, color: '#333' },
+  progressContainer: { marginHorizontal: 20, marginBottom: 20 },
+  progressTextContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  progressLabel: { fontSize: 16, fontWeight: '600', color: '#666' },
+  progressPercent: { fontSize: 16, fontWeight: 'bold', color: '#34C759' }, 
+  progressBarBackground: { height: 12, backgroundColor: '#e0e0e0', borderRadius: 6, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: '#34C759', borderRadius: 6 }, 
   list: { flex: 1, paddingHorizontal: 20 },
   taskItem: { backgroundColor: '#fff', padding: 20, borderRadius: 10, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   taskItemCompleted: { backgroundColor: '#e0e0e0', shadowOpacity: 0, elevation: 0 },
   taskItemEditing: { borderColor: '#007AFF', borderWidth: 2 },
   taskItemPressed: { backgroundColor: '#E8E8E8' }, 
-  taskTextContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  taskText: { fontSize: 16, color: '#333', flex: 1 },
+  taskTextContainer: { flexDirection: 'column' }, 
+  taskTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  taskText: { fontSize: 16, color: '#333', flex: 1, paddingRight: 10 },
   textCompleted: { color: '#888', textDecorationLine: 'line-through' },
+  
+  // Custom Badge Styles
+  customTagBadge: { backgroundColor: '#e8f0fe', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#007AFF' },
+  customTagBadgeText: { color: '#007AFF', fontSize: 10, fontWeight: 'bold' },
+  
   priorityText: { fontSize: 12, color: '#666', fontWeight: '600' },
   rowBack: { alignItems: 'center', backgroundColor: '#FF3B30', flex: 1, flexDirection: 'row', justifyContent: 'flex-end', borderRadius: 10, marginBottom: 10 },
   backRightBtn: { alignItems: 'center', bottom: 0, justifyContent: 'center', position: 'absolute', top: 0, width: 75, right: 0, borderTopRightRadius: 10, borderBottomRightRadius: 10 },
   backTextWhite: { color: '#FFF', fontWeight: 'bold' },
   inputWrapper: { backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e0e0e0', paddingBottom: 80 },
-  daysSelector: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 15 },
+  
+  // Tag Input Styles
+  tagInputContainer: { paddingHorizontal: 20, paddingTop: 15 },
+  tagInput: { height: 40, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, fontSize: 14 },
+  
+  daysSelector: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10 },
   dayButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
   dayButtonSelected: { backgroundColor: '#34C759' }, 
   dayButtonText: { color: '#666', fontWeight: 'bold', fontSize: 12 },
@@ -291,7 +347,7 @@ const styles = StyleSheet.create({
   priorityButtonSelected: { backgroundColor: '#007AFF' },
   priorityButtonText: { color: '#666', fontWeight: 'bold' },
   priorityButtonTextSelected: { color: '#fff' },
-  inputContainer: { flexDirection: 'row', padding: 20, paddingTop: 10 },
+  inputContainer: { flexDirection: 'row', padding: 20, paddingTop: 5 },
   input: { flex: 1, height: 50, backgroundColor: '#f0f0f0', borderRadius: 25, paddingHorizontal: 20, fontSize: 16, marginRight: 10 },
   addButton: { width: 50, height: 50, backgroundColor: '#007AFF', borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
   saveButton: { backgroundColor: '#34C759' },
