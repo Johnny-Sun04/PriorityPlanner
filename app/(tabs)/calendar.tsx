@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { SwipeListView } from 'react-native-swipe-list-view';
 import { Task, useTasks } from '../../context/TaskContext';
@@ -17,13 +17,18 @@ export default function CalendarScreen() {
   const [selectedPriority, setSelectedPriority] = useState<number>(1);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isCalendarVisible, setIsCalendarVisible] = useState(true);
+  
+  // --- NEW TAG INPUT STATE ---
+  const [tagInput, setTagInput] = useState('');
 
   const { tasks, setTasks } = useTasks();
+
+  // --- DYNAMICALLY COMPUTE EXISTING TAGS ---
+  const existingTags = Array.from(new Set(tasks.map(t => t.tag).filter(Boolean))) as string[];
 
   const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
   const selectedDayOfWeek = new Date(selYear, selMonth - 1, selDay).getDay();
 
-  // --- NEW HELPER FUNCTION FOR CALENDAR ---
   const isTaskCompletedOnDate = (task: Task, dateString: string) => {
     if (task.taskType === 'weekly') {
       return task.completedDates?.includes(dateString) || false;
@@ -42,7 +47,6 @@ export default function CalendarScreen() {
   });
 
   const sortedTasks = [...tasksForSelectedDate].sort((a, b) => {
-    // Sort dynamically based on the selected calendar date!
     const aCompleted = isTaskCompletedOnDate(a, selectedDate);
     const bCompleted = isTaskCompletedOnDate(b, selectedDate);
 
@@ -56,11 +60,12 @@ export default function CalendarScreen() {
     if (!taskText.trim()) return;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const finalTag = tagInput.trim() ? tagInput.trim() : undefined;
     
     if (editingTaskId) {
       setTasks(tasks.map(task => 
         task.id === editingTaskId 
-          ? { ...task, text: taskText, priority: selectedPriority } 
+          ? { ...task, text: taskText, priority: selectedPriority, tag: finalTag } 
           : task
       ));
       setEditingTaskId(null); 
@@ -73,12 +78,14 @@ export default function CalendarScreen() {
         taskType: 'single', 
         startDate: selectedDate, 
         completedDates: [],
+        tag: finalTag, // Save the new tag
       };
       setTasks([...tasks, newTask]);
     }
     
     setTaskText('');
     setSelectedPriority(1);
+    setTagInput(''); // Clear the tag input
     Keyboard.dismiss(); 
   };
 
@@ -87,9 +94,9 @@ export default function CalendarScreen() {
     setEditingTaskId(task.id);
     setTaskText(task.text);
     setSelectedPriority(task.priority);
+    setTagInput(task.tag || ''); // Load the existing tag into the input box
   };
 
-  // --- UPDATED TOGGLE LOGIC FOR CALENDAR ---
   const toggleComplete = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTasks(tasks.map(task => {
@@ -97,8 +104,6 @@ export default function CalendarScreen() {
         if (task.taskType === 'weekly') {
           const dates = task.completedDates || [];
           const isDoneOnSelectedDate = dates.includes(selectedDate);
-          
-          // Toggle it specifically for the date you are currently viewing
           const newDates = isDoneOnSelectedDate 
             ? dates.filter(d => d !== selectedDate) 
             : [...dates, selectedDate];
@@ -118,11 +123,11 @@ export default function CalendarScreen() {
     if (editingTaskId === id) {
       setEditingTaskId(null);
       setTaskText('');
+      setTagInput('');
     }
   };
 
   const renderTask = ({ item }: { item: Task }) => {
-    // Check if this task is completed specifically on the selected calendar date
     const isCompleted = isTaskCompletedOnDate(item, selectedDate);
 
     return (
@@ -138,10 +143,20 @@ export default function CalendarScreen() {
         delayLongPress={750} 
       >
         <View style={styles.taskTextContainer}>
-          <Text style={[styles.taskText, isCompleted && styles.textCompleted]}>
-            {item.text}
-            {item.taskType === 'weekly' && " 🔄"}
-          </Text>
+          <View style={styles.taskTitleRow}>
+            <Text style={[styles.taskText, isCompleted && styles.textCompleted]}>
+              {item.text}
+              {item.taskType === 'weekly' && " 🔄"}
+            </Text>
+            
+            {/* Dynamic Custom Tag Badge */}
+            {item.tag && (
+              <View style={styles.customTagBadge}>
+                <Text style={styles.customTagBadgeText}>{item.tag}</Text>
+              </View>
+            )}
+          </View>
+
           <Text style={styles.priorityText}>
             Priority {item.priority}
           </Text>
@@ -227,6 +242,38 @@ export default function CalendarScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 20} 
         style={styles.inputWrapper}
       >
+        
+        {/* --- CUSTOM TAG INPUT --- */}
+        <View style={styles.tagInputContainer}>
+          <TextInput
+            style={styles.tagInput}
+            placeholder="Tag (e.g. Filmmaking, Gym)..."
+            value={tagInput}
+            onChangeText={setTagInput}
+            maxLength={15} 
+          />
+        </View>
+
+        {/* --- RENDER EXISTING TAGS AS CLICKABLE CHIPS --- */}
+        {existingTags.length > 0 && (
+          <View style={styles.existingTagsContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
+              {existingTags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={styles.existingTagChip}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setTagInput(tag); 
+                  }}
+                >
+                  <Text style={styles.existingTagChipText}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={styles.prioritySelector}>
           <Text style={styles.priorityLabel}>
             {editingTaskId ? "Edit Priority:" : "Set Priority:"}
@@ -288,22 +335,36 @@ const styles = StyleSheet.create({
   taskItemCompleted: { backgroundColor: '#e0e0e0', shadowOpacity: 0, elevation: 0 },
   taskItemEditing: { borderColor: '#007AFF', borderWidth: 2 },
   taskItemPressed: { backgroundColor: '#E8E8E8' }, 
-  taskTextContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  taskText: { fontSize: 16, color: '#333', flex: 1 },
+  taskTextContainer: { flexDirection: 'column' }, 
+  taskTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  taskText: { fontSize: 16, color: '#333', flex: 1, paddingRight: 10 },
   textCompleted: { color: '#888', textDecorationLine: 'line-through' },
+  
+  customTagBadge: { backgroundColor: '#e8f0fe', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#007AFF' },
+  customTagBadgeText: { color: '#007AFF', fontSize: 10, fontWeight: 'bold' },
+  
   priorityText: { fontSize: 12, color: '#666', fontWeight: '600' },
   rowBack: { alignItems: 'center', backgroundColor: '#FF3B30', flex: 1, flexDirection: 'row', justifyContent: 'flex-end', borderRadius: 10, marginBottom: 10 },
   backRightBtn: { alignItems: 'center', bottom: 0, justifyContent: 'center', position: 'absolute', top: 0, width: 75, right: 0, borderTopRightRadius: 10, borderBottomRightRadius: 10 },
   backTextWhite: { color: '#FFF', fontWeight: 'bold' },
   placeholderText: { fontSize: 16, color: '#888', fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
   inputWrapper: { backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e0e0e0', paddingBottom: 80 },
-  prioritySelector: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 5 },
+  
+  tagInputContainer: { paddingHorizontal: 20, paddingTop: 15 },
+  tagInput: { height: 40, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, fontSize: 14 },
+  
+  existingTagsContainer: { paddingTop: 10 },
+  tagsScroll: { paddingHorizontal: 20, gap: 8 },
+  existingTagChip: { backgroundColor: '#e8f0fe', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#007AFF' },
+  existingTagChipText: { color: '#007AFF', fontSize: 12, fontWeight: 'bold' },
+  
+  prioritySelector: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 5 },
   priorityLabel: { fontSize: 14, color: '#666', marginRight: 15 },
   priorityButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
   priorityButtonSelected: { backgroundColor: '#007AFF' },
   priorityButtonText: { color: '#666', fontWeight: 'bold' },
   priorityButtonTextSelected: { color: '#fff' },
-  inputContainer: { flexDirection: 'row', padding: 20, paddingTop: 10 },
+  inputContainer: { flexDirection: 'row', padding: 20, paddingTop: 5 },
   input: { flex: 1, height: 50, backgroundColor: '#f0f0f0', borderRadius: 25, paddingHorizontal: 20, fontSize: 16, marginRight: 10 },
   addButton: { width: 50, height: 50, backgroundColor: '#007AFF', borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
   saveButton: { backgroundColor: '#34C759' },
